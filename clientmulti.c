@@ -1,4 +1,13 @@
-// C program for the Client Side
+// C program for the Server Side
+
+// inet_addr
+#include <arpa/inet.h>
+
+// For threading, link with lpthread
+#include <pthread.h>
+
+#include <semaphore.h>
+
 #include <stdio.h>
 
 #include <stdlib.h>
@@ -7,460 +16,1016 @@
 
 #include <sys/socket.h>
 
-// inet_addr
-#include <arpa/inet.h>
-
 #include <unistd.h>
 
-
-//@@@@@@@@@@@@@ Macros @@@@@@@@@@@@@@//
+// MACROS DEFINITIONS
 #define MAX 80
 #define PORT 8000
 #define SA struct sockaddr
 
-//  dataStructure to store data
+// Semaphore variables
+sem_t x, y;
+
+pthread_t tid;
+
+pthread_t clientthreads[100];
+
+int readercount = 0;
+
+FILE * fx;
+
+
+// STRUCTURE TO STORE CONTACT
 struct contact {
+
    long ph;
+
    char name[20], add[20], email[30], fun_name[20];
 
 }
-list, ll1;
+list, ll1, sort;
 
-// Global declaration
 FILE * fp, * ft;
-FILE * fx;
-int ch;
-int n;
-char dummy;
 
-//@@@@@@@@@@@@@ User defined Procedures @@@@@@@@@@@@@//
+int i, n, ch, l, found;
 
-// this function will catch the contacts from server
-void write_file(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in write_file\n");
-   if (fx == NULL) {
+
+
+
+// SEND THE CONTACT TO REQUESTER
+void
+send_file_display(int sockfd) {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, " in send_file_display \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
-   // local var for internal use
-   int n;
-   int count = 0;
 
-   printf("\n\t\t================================\n\t\t\tLIST OF CONTACTS\n\t\t================================\n\nName\t\tPhone No\t    Address\t\tE-mail ad.\n=================================================================\n\n");
+   fp = fopen("contact.dll", "r");
 
-   // for catching the contacts thrown by server////
-   while (1) {
+   if (fp == NULL)
 
-      recv(sockfd, & list, sizeof(list), 0);
+   {
 
-      // loop breaking condition to get out from infinite loop		
-      if (strcmp(list.name, "exit") == 0) {
-         return;
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, " fp failed in send_file_display \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
       }
 
-      // showing catched contact
-      printf("\nName\t: %s\nPhone\t: %ld\nAddress\t: %s\nEmail\t: %s\n", list.name,
-         list.ph, list.add, list.email);
-   }
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out write_file\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
-   fclose(fx);
-   return;
-}
+      fclose(fx);
 
-// add contacts to file_system in server
-void exit_connection(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in exit_connection\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
    }
-   fclose(fx);
-   system("clear");
-   printf("\n\n\t\tAre you sure you want to exit?");
 
-   strcpy(ll1.fun_name, "exit");
+   while (fread( & list, sizeof(list), 1, fp) == 1)
+
+   {
+
+      if (send(sockfd, & list, sizeof(list), 0) == -1)
+
+      {
+
+         printf("file not send sucessfully");
+
+      }
+
+   }
+
+   strcpy(ll1.name, "exit");
 
    send(sockfd, & ll1, sizeof(ll1), 0);
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out\n");
-   if (fx == NULL) {
+
+   fclose(fp);
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "out display  \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
 
    return;
+
 }
 
-// add the contacts to file in server
-void add_contact(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in add_contact\n");
-   if (fx == NULL) {
+
+//SEARCH THE FILE AND SEND TO CLIENT
+void
+send_file_searched(int sockfd, long search_ph) {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "in send_file_searched   \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
-   again: system("clear");
-   printf("To exit enter blank space in the name input\nName (Use identical):");
 
-   scanf("%[^\n]", list.name);
+   fp = fopen("contact.dll", "r");
 
-   getchar();
+   if (fp == NULL)
 
-   printf("Phone:");
-   list.ph = 0;
-   scanf("%ld", & list.ph);
-   if (list.ph == 0 || list.ph < 0) {
-      system("clear");
-      printf("Enter Valid number not use only 0 or nagative number other wise do again");
-      getchar();
+   {
 
-      goto again;
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, "  fp failed in send_file_searched \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
    }
 
-   getchar();
+   struct contact sort;
 
-   printf("address:");
-   scanf("%[^\n]", list.add);
+   strcpy(sort.fun_name, "notfound");
 
-   getchar();
+   while (fread( & list, sizeof(list), 1, fp) == 1)
 
-   printf("email address:");
+   {
 
-   scanf("%[^\n]", list.email);
+      if (list.ph == search_ph)
 
-   getchar();
+      {
 
-   printf("\n");
+         send(sockfd, & list, sizeof(list), 0);
 
-   strcpy(list.fun_name, "add");
+         strcpy(sort.fun_name, "found");
 
-   send(sockfd, & list, sizeof(list), 0);
+         break;
 
-   recv(sockfd, & ll1, sizeof(ll1), 0);
-   system("clear");
-   printf("Entered number is %s in directory\n\n\n", ll1.fun_name);
-   printf("press enter for main menu : ");
+      }
 
-   getchar();
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out add_contact\n");
-   if (fx == NULL) {
+   }
+
+   strcpy(ll1.name, "exit");
+
+   send(sockfd, & ll1, sizeof(ll1), 0);
+
+   fclose(fp);
+
+   send(sockfd, & sort, sizeof(sort), 0);
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "out send_file_searched   \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
+   fclose(fx);
+
+}
+
+
+//EDIT CONTACT AND INFORM BACK TO CLIENT
+void
+send_file_edit(int sockfd) {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, " in send_file_edit  \n");
+
+   fclose(fx);
+
+   // Lock the semaphore
+   sem_wait( & x);
+
+   bool chk = false;
+
+   struct contact sort;
+
+   fp = fopen("contact.dll", "r");
+
+   if (fp == NULL)
+
+   {
+
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, " fp failed in send_file_edit  \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
+   }
+
+   ft = fopen("temp.dat", "w");
+
+   if (ft == NULL)
+
+   {
+
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, "  fp failed in send_file_edit \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
+   }
+
+   strcpy(sort.fun_name, "notfound");
+
+   while (fread( & list, sizeof(list), 1, fp) == 1)
+
+   {
+
+      if (ll1.ph != list.ph)
+
+      {
+
+         fwrite( & list, sizeof(list), 1, ft);
+
+      } else
+
+      {
+
+         chk = true;
+
+      }
+
+   }
+
+   if (chk == true)
+
+   {
+
+      fwrite( & ll1, sizeof(ll1), 1, ft);
+
+      strcpy(sort.fun_name, "Edited");
+
+   } else
+
+   {
+
+      strcpy(sort.fun_name, "not_edited");
+
+   }
+
+   fclose(fp);
+
+   fclose(ft);
+
+   remove("contact.dll");
+
+   rename("temp.dat", "contact.dll");
+
+   send(sockfd, & sort, sizeof(sort), 0);
+
+   // Unlock the semaphore
+   sem_post( & x);
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, " out send_file_edit  \n");
+
+   if (fx == NULL)
+
+   {
+
+      printf("fx has not opened");
+
+   }
+
    fclose(fx);
 
    return;
+
 }
 
-// to display the contact
-void display_contact(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in display_contact\n");
-   if (fx == NULL) {
+
+//DELETE CONTACT AND INFROM BACK TO CLIENT
+void
+send_file_delete(int sockfd) {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "in send_file_delete   \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
-   }
-   fclose(fx);
-   system("clear");
-   strcpy(list.fun_name, "display");
-
-   send(sockfd, & list, sizeof(list), 0);
-
-   write_file(sockfd);
-
-   printf("press enter for main menu : ");
-
-   getchar();
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out display_contact\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
-   fclose(fx);
-   return;
-}
-
-// to search the contact
-void search_contact(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in search_contact\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
-   fclose(fx);
-   search: system("clear");
-   printf("\n\n\t..::CONTACT SEARCH\n\t===========================\n\t..::Phone number of contact to search: ");
-
-   fflush(stdin);
-
-   list.ph = 0;
-   scanf("%ld", & list.ph);
-   if (list.ph == 0 || list.ph < 0) {
-      system("clear");
-      printf("Enter Valid number not use only 0 or nagative number other wise do again");
-      getchar();
-      getchar();
-      goto search;
-   }
-
-   getchar();
-
-   strcpy(list.fun_name, "search");
-
-   send(sockfd, & list, sizeof(list), 0);
-
-   write_file(sockfd);
-
-   recv(sockfd, & ll1, sizeof(ll1), 0);
-   if (strcmp(ll1.fun_name, "notfound") == 0) {
-      system("clear");
-      printf("Entered number is %s in directory \n\n\n", ll1.fun_name);
 
    }
-   printf("press enter for main menu : ");
-   getchar();
 
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out search_contact\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
    fclose(fx);
 
-   return;
-}
+   struct contact sort;
 
-// to edit the contact
-void edit_contact(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in edit_contact\n");
-   if (fx == NULL) {
+   fp = fopen("contact.dll", "r");
+
+   if (fp == NULL)
+
+   {
+
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, " fp failed in send_file_delete  \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
+   }
+
+   ft = fopen("temp.dat", "w");
+
+   if (ft == NULL)
+
+   {
+
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, " ft failed in send_file_delete  \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
+   }
+
+   strcpy(sort.fun_name, "notfound");
+
+   while (fread( & list, sizeof(list), 1, fp) == 1)
+
+   {
+
+      if (ll1.ph != list.ph)
+
+      {
+
+         fwrite( & list, sizeof(list), 1, ft);
+
+      } else
+
+      {
+
+         strcpy(sort.fun_name, "found");
+
+      }
+
+   }
+
+   fclose(fp);
+
+   fclose(ft);
+
+   remove("contact.dll");
+
+   rename("temp.dat", "contact.dll");
+
+   send(sockfd, & sort, sizeof(list), 0);
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, " out send_file_delete \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
-   }
-   fclose(fx);
-   edit: system("clear");
-   printf("..::Edit contact\n===============================\n\n\t..::Enter the name of contact to edit:");
 
-   scanf("%[^\n]", list.name);
-
-   getchar();
-
-   printf("Phone:");
-
-   list.ph = 0;
-   scanf("%ld", & list.ph);
-   if (list.ph == 0 || list.ph < 0) {
-      system("clear");
-      printf("Enter Valid number not use only 0 or nagative number other wise do again");
-      getchar();
-      getchar();
-      goto edit;
    }
 
-   getchar();
-
-   printf("address:");
-   scanf("%[^\n]", list.add);
-
-   getchar();
-
-   printf("email address:");
-
-   scanf("%[^\n]", list.email);
-
-   getchar();
-
-   printf("\n");
-
-   strcpy(list.fun_name, "edit");
-
-   send(sockfd, & list, sizeof(list), 0);
-
-   recv(sockfd, & ll1, sizeof(ll1), 0);
-   system("clear");
-   printf("Entered number is %s in directory \n\n\n", ll1.fun_name);
-
-   printf("press enter for main menu : ");
-
-   getchar();
-
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out edit_contact\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
    fclose(fx);
 
    return;
+
 }
 
-// to delete the contact
-void delete_contact(int sockfd) {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in delete_contact\n");
-   if (fx == NULL) {
+//ADD THAT CONTACT AFTER CHECKING ITS ALREADY THERE OR NOT THEN ADD
+bool send_file_add(int sockfd, struct contact demo) {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "in send_file_add   \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
-   dlt: system("clear");
-   printf("\n\n\t..::DELETE A CONTACT\n\t==========================\n\t..::Enter the numbers of contact to delete:");
 
-   list.ph = 0;
-   scanf("%ld", & list.ph);
-   if (list.ph == 0 || list.ph < 0) {
-      system("clear");
-      printf("Enter Valid number not use only 0 or nagative number other wise do again");
-      getchar();
-      getchar();
-      goto dlt;
+   fp = fopen("contact.dll", "r");
+
+   if (fp == NULL)
+
+   {
+
+      printf("file failed to open.");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, "fp failed in send_file_add   \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
    }
 
-   getchar();
+   while (fread( & ll1, sizeof(ll1), 1, fp) == 1)
 
-   strcpy(list.fun_name, "delete");
+   {
 
-   send(sockfd, & list, sizeof(list), 0);
+      if (ll1.ph == demo.ph)
 
-   recv(sockfd, & ll1, sizeof(list), 0);
-   system("clear");
-   printf("Entered number is %s in directory\n\n\n", ll1.fun_name);
-   printf("press enter for main menu : ");
+      {
 
-   getchar();
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out delete_contact\n");
-   if (fx == NULL) {
+         fclose(fp);
+
+         return true;
+
+      }
+
+   }
+
+   fclose(fp);
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "out send_file_add \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
-   return;
+
+   return false;
+
 }
 
-// main funtionality 
-void func(int sockfd) {
+// Function designed for chat between client and server.
+void *
+   func(void * args) {
 
-   /* ************Main menu ***********************  */
+      int sockfd = * ((int * ) args);
 
-   main: system("clear");
+      fx = fopen("data.log", "a");
 
-   printf("\n\t **** Welcome to Contact Management System ****");
+      fprintf(fx, " in func\n ");
 
-   printf("\n\n\n\t\t\tMAIN MENU\n\t\t=====================\n\t\t[1] Add a new Contact\n\t\t[2] List all Contacts\n\t\t[3] Search for contact\n\t\t[4] Edit a Contact\n\t\t[5] Delete Contact\n\t\t[0] Exit\n\t\t=================\n\t\t");
+      if (fx == NULL)
 
-   printf("Enter the choice:");
+      {
 
-   scanf("%d", & ch);
-   getchar();
+         printf("fx has not opened");
 
-   switch (ch) {
+      }
 
-   case 0:
+      fclose(fx);
 
-      exit_connection(sockfd);
+      for (;;)
 
-      break;
+      {
 
-      /* *********************Add new contacts************  */
+         fx = fopen("data.log", "a");
 
-   case 1:
-      add_contact(sockfd);
+         fprintf(fx, " in func in for start\n ");
 
-      goto main;
+         if (fx == NULL)
 
-      /* *********************display contacts************  */
+         {
 
-   case 2:
-      display_contact(sockfd);
+            printf("fx has not opened");
 
-      goto main;
+         }
 
-   case 3:
-      search_contact(sockfd);
+         fclose(fx);
 
-      goto main;
+         recv(sockfd, & list, sizeof(list), 0);
 
-      /* *********************Edit  contacts************  */
-   case 4:
-      edit_contact(sockfd);
+         if (strcmp(list.fun_name, "add") == 0)
 
-      goto main;
+         {
 
-      /* *********************Delete  contacts************  */
-   case 5:
+            fx = fopen("data.log", "a");
 
-      delete_contact(sockfd);
-      goto main;
+            fprintf(fx, " in add\n ");
 
-   default:
+            if (fx == NULL)
 
-      printf("Invalid choice");
+            {
 
-      break;
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            if (send_file_add(sockfd, list) == 0)
+
+            {
+
+               struct contact sort1;
+
+               fp = fopen("contact.dll", "a");
+
+               if (fp == NULL)
+
+               {
+
+                  printf("file failed to open.");
+
+                  fx = fopen("data.log", "a");
+
+                  fprintf(fx, " fp has error in add  \n");
+
+                  if (fx == NULL)
+
+                  {
+
+                     printf("fx has not opened");
+
+                  }
+
+                  fclose(fx);
+
+               }
+
+               fwrite( & list, sizeof(list), 1, fp);
+
+               fclose(fp);
+
+               strcpy(sort1.fun_name, "added");
+
+               send(sockfd, & sort1, sizeof(sort1), 0);
+
+               fx = fopen("data.log", "a");
+
+               fprintf(fx, "   added contact\n");
+
+               if (fx == NULL)
+
+               {
+
+                  printf("fx has not opened");
+
+               }
+
+               fclose(fx);
+
+            } else
+
+            {
+
+               struct contact sort1;
+
+               strcpy(sort1.fun_name, "notadded");
+
+               send(sockfd, & sort1, sizeof(sort), 0);
+
+               fx = fopen("data.log", "a");
+
+               fprintf(fx, "not added contact   \n");
+
+               if (fx == NULL)
+
+               {
+
+                  printf("fx has not opened");
+
+               }
+
+               fclose(fx);
+
+            }
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "out add   \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+         }
+
+         if (strcmp(list.fun_name, "display") == 0)
+
+         {
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "  in display \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            send_file_display(sockfd);
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "  out display \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+         }
+
+         if (strcmp(list.fun_name, "search") == 0)
+
+         {
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, " in search  \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            send_file_searched(sockfd, list.ph);
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "   out search\n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+         }
+
+         if (strcmp(list.fun_name, "edit") == 0)
+
+         {
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "  in edit \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            ll1 = list;
+
+            send_file_edit(sockfd);
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, "   out edit\n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+         }
+
+         if (strcmp(list.fun_name, "delete") == 0)
+
+         {
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, " in delete \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            ll1 = list;
+
+            send_file_delete(sockfd);
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, " out delete  \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+         }
+
+         if (strcmp(list.fun_name, "exit") == 0)
+
+         {
+
+            fx = fopen("data.log", "a");
+
+            fprintf(fx, " exited thread  \n");
+
+            if (fx == NULL)
+
+            {
+
+               printf("fx has not opened");
+
+            }
+
+            fclose(fx);
+
+            pthread_exit(NULL);
+
+            return 0;
+
+         }
+
+      }
+
+      pthread_exit(NULL);
+
+      return 0;
 
    }
-
-   return;
-}
 
 // Driver Code
-int main() {
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "in main\n");
-   if (fx == NULL) {
+int
+main() {
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "enter in main \n");
+
+   if (fx == NULL)
+
+   {
+
       printf("fx has not opened");
+
    }
+
    fclose(fx);
-   int network_socket;
 
-   // Create a stream socket
-   network_socket = socket(AF_INET,
-      SOCK_STREAM, 0);
+   // Initialize variables
+   int serverSocket, newSocket;
 
-   // Initialise port number and address
-   struct sockaddr_in server_address;
-   server_address.sin_family = AF_INET;
-   server_address.sin_addr.s_addr = INADDR_ANY;
-   server_address.sin_port = htons(8989);
+   struct sockaddr_in serverAddr;
 
-   // Initiate a socket connection
-   int connection_status = connect(network_socket,
-      (struct sockaddr * ) & server_address,
-      sizeof(server_address));
+   struct sockaddr_storage serverStorage;
 
-   // Check for connection error
-   if (connection_status < 0) {
-      puts("Error\n");
-      fx = fopen("datac.log", "a");
-      fprintf(fx, "error in connecting\n");
-      if (fx == NULL) {
-         printf("fx has not opened");
-      }
+   socklen_t addr_size;
+
+   sem_init( & x, 0, 1);
+
+   sem_init( & y, 0, 1);
+
+   serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+   serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+   serverAddr.sin_family = AF_INET;
+
+   serverAddr.sin_port = htons(8989);
+
+   // Bind the socket to the
+   // address and port number.
+   bind(serverSocket,
+      (struct sockaddr * ) & serverAddr,
+      sizeof(serverAddr));
+
+   // Listen on the socket,
+   // with 40 max connection
+   // requests queued
+   if (listen(serverSocket, 50) == 0)
+
+   {
+
+      printf("Listening\n");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, "listining success\n");
+
       fclose(fx);
-      return 0;
+
+   } else
+
+   {
+
+      printf("Error\n");
+
+      fx = fopen("data.log", "a");
+
+      fprintf(fx, "error in connection not listning \n");
+
+      if (fx == NULL)
+
+      {
+
+         printf("fx has not opened");
+
+      }
+
+      fclose(fx);
+
    }
 
-   printf("Connection established\n");
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "connection done\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
+   // Array for thread
+   pthread_t tid[60];
+
+   int i = 0;
+
+   while (1)
+
+   {
+
+      addr_size = sizeof(serverStorage);
+
+      // Extract the first
+      // connection in the queue
+      newSocket = accept(serverSocket,
+         (struct sockaddr * ) & serverStorage, &
+         addr_size);
+
+      if (pthread_create( & clientthreads[i++], NULL,
+            func, & newSocket)
+
+         !=
+         0)
+
+      {
+
+         // Error in creating thread
+         printf("Failed to create thread\n");
+
+         fx = fopen("data.log", "a");
+
+         fprintf(fx, "error in creating tread\n");
+
+         if (fx == NULL)
+
+         {
+
+            printf("fx has not opened");
+
+         }
+
+         fclose(fx);
+
+      }
+
    }
+
+   fx = fopen("data.log", "a");
+
+   fprintf(fx, "exited sucess from main\n");
+
+   if (fx == NULL)
+
+   {
+
+      printf("fx has not opened");
+
+   }
+
    fclose(fx);
 
-   // Send data to the socket
-   func(network_socket);
-
-   // Close the connection
-   close(network_socket);
-   fx = fopen("datac.log", "a");
-   fprintf(fx, "out main\n");
-   if (fx == NULL) {
-      printf("fx has not opened");
-   }
-   fclose(fx);
    return 0;
+
 }
